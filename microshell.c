@@ -1,13 +1,17 @@
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+
+#define IN 0
+#define OUT 1
+#define ERR 2
 
 void print_string(char *string)
 {
 	while (*string != '\0')
 	{
-		write(STDERR_FILENO, string, 1);
+		write(ERR, string, 1);
 		string++;
 	}
 }
@@ -22,9 +26,9 @@ int print_error(char *message, char *parameter)
 	return 1;
 }
 
-int cd_handler(char *path, int count)
+int cd_handler(char *path, int i)
 {
-	if (count != 2)
+	if (i != 2)
 		return print_error("cd: bad arguments", NULL);
 	if (chdir(path) == -1)
 		return print_error("cd: cannot change directory to ", path);
@@ -46,15 +50,15 @@ int command_handler(char **argv, char **envp, int i)
 	if (pid == 0)
 	{
 		argv[i] = NULL;
-		if (has_pipe && (dup2(pipe_fd[1], STDOUT_FILENO) == -1 || close(pipe_fd[0]) == -1 || close(pipe_fd[1]) == -1))
+		if (has_pipe && (dup2(pipe_fd[1], OUT) == -1 || close(pipe_fd[0]) == -1 || close(pipe_fd[1]) == -1))
 			return print_error("fatal", NULL);
 		execve(command, argv, envp);
 		return print_error("cannot execute ", command);
 	}
-	
+
 	int status;
 	waitpid(pid, &status, 0);
-	if (has_pipe && (dup2(pipe_fd[0], STDIN_FILENO) == -1 || close(pipe_fd[0]) == -1 || close(pipe_fd[1]) == -1))
+	if (has_pipe && (dup2(pipe_fd[0], IN) == -1 || close(pipe_fd[0]) == -1 || close(pipe_fd[1]) == -1))
 		return print_error("fatal", NULL);
 	return WIFEXITED(status) && WEXITSTATUS(status);
 }
@@ -62,7 +66,7 @@ int command_handler(char **argv, char **envp, int i)
 int main(int argc, char **argv, char **envp)
 {
 	if (argc < 2)
-		return 0;
+		return 1;
 
 	int status = 0;
 	int i = 0;
